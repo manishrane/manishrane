@@ -1,56 +1,52 @@
-import com.azure.storage.blob.BlobServiceAsyncClient;
+import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.MediaType;
-import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.http.codec.multipart.FilePart;
-import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
+import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
-import java.util.concurrent.Callable;
+import java.io.OutputStream;
 
 @SpringBootApplication
-public class AzureBlobDownloadApp {
+public class AzureBlobDownloadApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(AzureBlobDownloadApp.class, args);
+        SpringApplication.run(AzureBlobDownloadApplication.class, args);
     }
 
-    @Bean
-    public BlobServiceAsyncClient blobServiceAsyncClient() {
-        return new BlobServiceClientBuilder().connectionString("YOUR_STORAGE_CONNECTION_STRING").buildAsyncClient();
-    }
-}
+    @RestController
+    public class BlobDownloadController {
 
-@RestController
-class DownloadController {
+        @GetMapping("/downloadBlob")
+        public void downloadBlob(HttpServletResponse response) {
+            String connectionString = "your_connection_string_here";
+            String containerName = "your_container_name_here";
+            String blobName = "your_blob_name_here";
 
-    private final BlobServiceAsyncClient blobServiceAsyncClient;
+            BlobContainerClient containerClient = new BlobServiceClientBuilder()
+                    .connectionString(connectionString)
+                    .buildClient()
+                    .getBlobContainerClient(containerName);
 
-    public DownloadController(BlobServiceAsyncClient blobServiceAsyncClient) {
-        this.blobServiceAsyncClient = blobServiceAsyncClient;
-    }
+            try {
+                response.setHeader("Content-Disposition", "attachment; filename=" + blobName);
+                response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
 
-    @GetMapping("/download/{containerName}/{blobName}")
-    public Flux<DataBuffer> downloadBlob(
-            @PathVariable String containerName,
-            @PathVariable String blobName,
-            ServerHttpResponse response) {
+                OutputStream outputStream = response.getOutputStream();
+                containerClient.getBlobClient(blobName)
+                        .openQueryOptions().setDownloadStreaming(true)
+                        .download(outputStream);
 
-        return blobServiceAsyncClient.getBlobContainerAsyncClient(containerName)
-                .getBlobAsyncClient(blobName)
-                .openQueryStream()
-                .flatMapMany(Flux::fromStream)
-                .doOnSubscribe(subscription -> response.getHeaders().setContentType(MediaType.APPLICATION_OCTET_STREAM))
-                .doOnError(IOException.class, error -> response.setStatusCode(500))
-                .doFinally(signalType -> response.setComplete());
+                outputStream.flush();
+            } catch (IOException e) {
+                System.err.println("Error streaming blob: " + e.getMessage());
+            }
+        }
     }
 }
