@@ -1,0 +1,56 @@
+import com.azure.storage.blob.BlobServiceAsyncClient;
+import com.azure.storage.blob.BlobServiceClientBuilder;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.http.codec.multipart.FilePart;
+import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.io.IOException;
+import java.util.concurrent.Callable;
+
+@SpringBootApplication
+public class AzureBlobDownloadApp {
+
+    public static void main(String[] args) {
+        SpringApplication.run(AzureBlobDownloadApp.class, args);
+    }
+
+    @Bean
+    public BlobServiceAsyncClient blobServiceAsyncClient() {
+        return new BlobServiceClientBuilder().connectionString("YOUR_STORAGE_CONNECTION_STRING").buildAsyncClient();
+    }
+}
+
+@RestController
+class DownloadController {
+
+    private final BlobServiceAsyncClient blobServiceAsyncClient;
+
+    public DownloadController(BlobServiceAsyncClient blobServiceAsyncClient) {
+        this.blobServiceAsyncClient = blobServiceAsyncClient;
+    }
+
+    @GetMapping("/download/{containerName}/{blobName}")
+    public Flux<DataBuffer> downloadBlob(
+            @PathVariable String containerName,
+            @PathVariable String blobName,
+            ServerHttpResponse response) {
+
+        return blobServiceAsyncClient.getBlobContainerAsyncClient(containerName)
+                .getBlobAsyncClient(blobName)
+                .openQueryStream()
+                .flatMapMany(Flux::fromStream)
+                .doOnSubscribe(subscription -> response.getHeaders().setContentType(MediaType.APPLICATION_OCTET_STREAM))
+                .doOnError(IOException.class, error -> response.setStatusCode(500))
+                .doFinally(signalType -> response.setComplete());
+    }
+}
