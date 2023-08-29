@@ -1,0 +1,29 @@
+@Configuration
+@EnableBatchProcessing
+public class BatchConfig {
+    @Autowired
+    private JobBuilderFactory jobBuilderFactory;
+    
+    @Autowired
+    private StepBuilderFactory stepBuilderFactory;
+    
+    @Autowired
+    private WebsiteLoginService websiteLoginService;
+    
+    @Bean
+    public Job websiteLoginJob() {
+        return jobBuilderFactory.get("websiteLoginJob")
+                .start(loginStep())
+                .build();
+    }
+    
+    @Bean
+    public Step loginStep() {
+        return stepBuilderFactory.get("loginStep")
+                .tasklet((contribution, chunkContext) -> {
+                    websiteLoginService.login();
+                    return RepeatStatus.FINISHED;
+                })
+                .build();
+    }
+}
