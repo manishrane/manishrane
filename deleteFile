@@ -43,4 +43,58 @@ public class FileDownloadController {
             return ResponseEntity.notFound().build();
         }
     }
+
+public void unzipBlobFile(String blobName) throws IOException {
+        String connectionString = "DefaultEndpointsProtocol=https;AccountName=your-storage-account-name;AccountKey=your-storage-account-key;EndpointSuffix=core.windows.net";
+        
+        BlobServiceClientBuilder builder = new BlobServiceClientBuilder().connectionString(connectionString);
+        BlobContainerClient containerClient = builder.containerClient(containerName);
+        BlobClient blobClient = containerClient.getBlobClient(blobName);
+
+        byte[] zipData = blobClient.downloadContent().readAllBytes();
+        ByteArrayInputStream zipInputStream = new ByteArrayInputStream(zipData);
+
+        try (ZipArchiveInputStream zipArchiveInputStream = new ZipArchiveInputStream(zipInputStream)) {
+            ArchiveEntry entry;
+            while ((entry = zipArchiveInputStream.getNextEntry()) != null) {
+                if (!entry.isDirectory()) {
+                    String entryName = entry.getName();
+                    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                    byte[] buffer = new byte[4096];
+                    int bytesRead;
+                    while ((bytesRead = zipArchiveInputStream.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, bytesRead);
+                    }
+                    byte[] extractedData = outputStream.toByteArray();
+                    // Do something with extractedData (e.g., store it or process it)
+                }
+            }
+        }
+    }
+}
+Create an Endpoint to Trigger the Unzip:
+
+Create an endpoint in your controller to trigger the unzip operation. For example:
+
+java
+Copy code
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.IOException;
+
+@RestController
+@RequestMapping("/api")
+public class BlobUnzipController {
+
+    @Autowired
+    private BlobUnzipService blobUnzipService;
+
+    @GetMapping("/unzip/{blobName}")
+    public String unzipBlob(@PathVariable String blobName) throws IOException {
+        blobUnzipService.unzipBlobFile(blobName);
+        return "File unzipped successfully!";
+    }
+}
+
 }
