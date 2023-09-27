@@ -98,3 +98,111 @@ public class BlobUnzipController {
 }
 
 }
+
+
+import org.springframework.batch.core.ItemWriteListener;
+import org.springframework.batch.core.StepExecution;
+import org.springframework.batch.core.configuration.annotation.StepScope;
+import org.springframework.batch.core.repository.dao.DefaultExecutionContextSerializer;
+import org.springframework.batch.item.ItemWriter;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+@Component
+@Scope("step")
+public class CustomItemWriter implements ItemWriter<MyItem> {
+
+    private DefaultExecutionContextSerializer serializer;
+
+    public CustomItemWriter(DefaultExecutionContextSerializer serializer) {
+        this.serializer = serializer;
+    }
+
+    @Override
+    public void write(List<? extends MyItem> items) throws Exception {
+        // Access the ExecutionContext
+        StepExecution stepExecution = serializer.getStepExecution();
+        ExecutionContext executionContext = stepExecution.getExecutionContext();
+
+        // Store data in the ExecutionContext
+        executionContext.put("myDataKey", "Some data to be stored");
+
+        // Retrieve data from the ExecutionContext
+        String myData = (String) executionContext.get("myDataKey");
+
+        // Your custom write logic here
+        // ...
+    }
+}
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.Step;
+import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
+import org.springframework.batch.core.repository.dao.DefaultExecutionContextSerializer;
+
+@Configuration
+@EnableBatchProcessing
+public class JobConfiguration {
+
+    @Autowired
+    private JobBuilderFactory jobBuilderFactory;
+
+    @Autowired
+    private StepBuilderFactory stepBuilderFactory;
+
+    @Autowired
+    private DefaultExecutionContextSerializer defaultExecutionContextSerializer;
+
+    @Bean
+    public Step customStep() {
+        return stepBuilderFactory.get("customStep")
+                .<MyItem, MyItem>chunk(10)
+                .reader(customReader())
+                .writer(customItemWriter())
+                .build();
+    }
+
+    @Bean
+    public Job customJob(Step customStep) {
+        return jobBuilderFactory.get("customJob")
+                .start(customStep)
+                .build();
+    }
+
+    @Bean
+    public CustomItemWriter customItemWriter() {
+        return new CustomItemWriter(defaultExecutionContextSerializer);
+    }
+}
+import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.batch.core.repository.dao.AbstractJdbcBatchMetadataDao;
+import org.springframework.batch.core.repository.dao.DefaultExecutionContextSerializer;
+import org.springframework.batch.core.repository.dao.Jackson2ExecutionContextStringSerializer;
+
+@Configuration
+@EnableBatchProcessing
+public class BatchConfiguration {
+
+    @Bean
+    public Jackson2ExecutionContextStringSerializer jacksonExecutionContextSerializer() {
+        return new Jackson2ExecutionContextStringSerializer();
+    }
+
+    @Bean
+    public DefaultExecutionContextSerializer defaultExecutionContextSerializer(
+            Jackson2ExecutionContextStringSerializer jacksonSerializer) {
+        DefaultExecutionContextSerializer serializer = new DefaultExecutionContextSerializer();
+        serializer.setJacksonSerializer(jacksonSerializer);
+        return serializer;
+    }
+}
+
