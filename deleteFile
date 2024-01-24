@@ -206,3 +206,39 @@ public class BatchConfiguration {
     }
 }
 
+# Set your Azure AD (Active Directory) tenant ID, client ID, and redirect URI
+TENANT_ID="your-tenant-id"
+CLIENT_ID="your-client-id"
+REDIRECT_URI="your-redirect-uri"
+
+# Set the Microsoft Identity platform authorization endpoint
+AUTHORIZATION_ENDPOINT="https://login.microsoftonline.com/$TENANT_ID/oauth2/v2.0/authorize"
+
+# Set the token endpoint
+TOKEN_ENDPOINT="https://login.microsoftonline.com/$TENANT_ID/oauth2/v2.0/token"
+
+# Set the scope for the ID token (openid profile email)
+SCOPE="openid%20profile%20email"
+
+# Set the response type to obtain an ID token
+RESPONSE_TYPE="id_token"
+
+# Set a unique nonce (a random string) to mitigate replay attacks
+NONCE="your-unique-nonce"
+
+# Set the curl command to initiate the authorization flow
+curl -X GET "$AUTHORIZATION_ENDPOINT?client_id=$CLIENT_ID&response_type=$RESPONSE_TYPE&redirect_uri=$REDIRECT_URI&scope=$SCOPE&nonce=$NONCE"
+
+# After user authentication, you will receive a code parameter in the redirect URI
+
+# Exchange the code for an ID token using the token endpoint
+CODE="the-obtained-code"
+
+# Set the client secret (if applicable)
+CLIENT_SECRET="your-client-secret"
+
+# Set the grant type to authorization code
+GRANT_TYPE="authorization_code"
+
+# Set the curl command to exchange the code for an ID token
+curl -X POST "$TOKEN_ENDPOINT" -d "client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET&code=$CODE&redirect_uri=$REDIRECT_URI&grant_type=$GRANT_TYPE"
