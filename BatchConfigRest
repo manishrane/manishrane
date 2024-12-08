@@ -87,3 +87,33 @@ ter: https://graph.microsoft.com/v1.0/groups?$filter=startswith(displayName,'Tea
 Select: https://graph.microsoft.com/v1.0/groups?$select=id,displayName
 Paginate: Look for the @odata.nextLink field in the response to fetch the next page.
 Modify the URI in your HttpRequest accordingly.
+
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import java.util.Iterator;
+
+import static org.mockito.Mockito.*;
+
+public class IteratorMockTest {
+
+    @Test
+    void testMockIterator() {
+        // Create a mock Iterator
+        Iterator<String> mockIterator = mock(Iterator.class);
+
+        // Define the behavior of `hasNext()` and `next()`
+        when(mockIterator.hasNext()).thenReturn(true, true, false); // First two calls return true, then false
+        when(mockIterator.next()).thenReturn("First", "Second");
+
+        // Use the mock iterator in test
+        while (mockIterator.hasNext()) {
+            System.out.println(mockIterator.next());
+        }
+
+        // Verify the interactions
+        verify(mockIterator, times(3)).hasNext();
+        verify(mockIterator, times(2)).next();
+    }
+}
+
