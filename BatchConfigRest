@@ -27,3 +27,63 @@ public class BatchConfig {
                 .build();
     }
 }
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
+public class FetchGroups {
+    public static void main(String[] args) {
+        String clientId = "<YOUR_CLIENT_ID>";
+        String clientSecret = "<YOUR_CLIENT_SECRET>";
+        String tenantId = "<YOUR_TENANT_ID>";
+
+        try {
+            // Get the access token
+            String accessToken = AuthToken.getAccessToken(clientId, clientSecret, tenantId);
+
+            // Build the HTTP request
+            HttpClient client = HttpClient.newHttpClient();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://graph.microsoft.com/v1.0/groups"))
+                    .header("Authorization", "Bearer " + accessToken)
+                    .header("Content-Type", "application/json")
+                    .GET()
+                    .build();
+
+            // Send the request
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            // Print the response
+            System.out.println("Response Code: " + response.statusCode());
+            System.out.println("Response Body: " + response.body());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+public class ParseGroups {
+    public static void parseGroups(String jsonResponse) {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(jsonResponse);
+            JsonNode groups = root.get("value");
+
+            if (groups.isArray()) {
+                for (JsonNode group : groups) {
+                    System.out.println("Group Name: " + group.get("displayName").asText());
+                    System.out.println("Group ID: " + group.get("id").asText());
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+ter: https://graph.microsoft.com/v1.0/groups?$filter=startswith(displayName,'Team')
+Select: https://graph.microsoft.com/v1.0/groups?$select=id,displayName
+Paginate: Look for the @odata.nextLink field in the response to fetch the next page.
+Modify the URI in your HttpRequest accordingly.
