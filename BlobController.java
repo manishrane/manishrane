@@ -91,3 +91,71 @@ public class FileDownloadController {
 }
 
 }
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+public class ODataPagination {
+
+    public static void main(String[] args) {
+        // Base URL for the API endpoint
+        String baseUrl = "https://graph.microsoft.com/v1.0/groups";
+        String accessToken = "YOUR_ACCESS_TOKEN"; // Replace with your valid access token
+
+        List<JSONObject> allGroups = fetchAllGroups(baseUrl, accessToken);
+
+        // Print all groups
+        System.out.println("Retrieved Groups:");
+        for (JSONObject group : allGroups) {
+            System.out.println(group.toString(2)); // Pretty-print JSON
+        }
+    }
+
+    private static List<JSONObject> fetchAllGroups(String baseUrl, String accessToken) {
+        List<JSONObject> groups = new ArrayList<>();
+        String nextLink = baseUrl;
+
+        HttpClient client = HttpClient.newHttpClient();
+
+        while (nextLink != null) {
+            try {
+                // Build HTTP request
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(new URI(nextLink))
+                        .header("Authorization", "Bearer " + accessToken)
+                        .GET()
+                        .build();
+
+                // Send the request
+                HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+                // Parse response as JSON
+                JSONObject jsonResponse = new JSONObject(response.body());
+
+                // Add groups to the list
+                if (jsonResponse.has("value")) {
+                    JSONArray valueArray = jsonResponse.getJSONArray("value");
+                    for (int i = 0; i < valueArray.length(); i++) {
+                        groups.add(valueArray.getJSONObject(i));
+                    }
+                }
+
+                // Check for @odata.nextLink to handle pagination
+                nextLink = jsonResponse.optString("@odata.nextLink", null);
+
+            } catch (Exception e) {
+                System.err.println("Error fetching groups: " + e.getMessage());
+                e.printStackTrace();
+                break;
+            }
+        }
+
+        return groups;
+    }
+}
