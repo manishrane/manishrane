@@ -282,3 +282,66 @@ curl -X POST "$TOKEN_ENDPOINT" -d "client_id=$CLIENT_ID&client_secret=$CLIENT_SE
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
+import com.azure.storage.blob.*;
+import com.azure.storage.blob.models.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.InputStreamResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Controller;
+
+import java.io.*;
+import java.util.concurrent.*;
+
+@Controller
+@RequestMapping("/api/blob")
+public class AzureBlobDownloaderController {
+
+    private static final int CHUNK_SIZE = 4 * 1024 * 1024; // 4 MB per chunk
+
+    @GetMapping("/download")
+    public ResponseEntity<InputStreamResource> downloadBlob(@RequestParam String connectionString,
+                                                             @RequestParam String containerName,
+                                                             @RequestParam String blobName) {
+        try {
+            BlobServiceClient blobServiceClient = new BlobServiceClientBuilder().connectionString(connectionString).buildClient();
+            BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(containerName);
+            BlobClient blobClient = containerClient.getBlobClient(blobName);
+
+            PipedInputStream pipedInputStream = new PipedInputStream();
+            PipedOutputStream pipedOutputStream = new PipedOutputStream(pipedInputStream);
+
+            ExecutorService executorService = Executors.newSingleThreadExecutor();
+            executorService.submit(() -> {
+                try (OutputStream outputStream = pipedOutputStream) {
+                    long blobSize = blobClient.getProperties().getBlobSize();
+                    long numChunks = (blobSize + CHUNK_SIZE - 1) / CHUNK_SIZE;
+
+                    for (long i = 0; i < numChunks; i++) {
+                        long offset = i * CHUNK_SIZE;
+                        long chunkSize = Math.min(CHUNK_SIZE, blobSize - offset);
+
+                        BlobRange range = new BlobRange(offset, chunkSize);
+                        blobClient.downloadStream(outputStream, range, null, null, false);
+                    }
+                } catch (IOException e) {
+                    System.err.println("Error streaming blob: " + e.getMessage());
+                }
+            });
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + blobName + "\"");
+            headers.setContentType(MediaType.APPLICATION_OCTET_STREAM);
+
+            return ResponseEntity.ok()
+                    .headers(headers)
+                    .contentLength(blobClient.getProperties().getBlobSize())
+                    .body(new InputStreamResource(pipedInputStream));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(null);
+        }
+    }
+}
+
+
