@@ -1,0 +1,118 @@
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.sql.*;
+import java.util.concurrent.*;
+
+public class DatabaseToFileMultithreading {
+
+    private static final int TOTAL_ROWS = 1_000_000;   // Total rows to fetch
+    private static final int FETCH_SIZE = 10_000;      // Rows fetched per batch
+    private static final int QUEUE_CAPACITY = 1000;    // Capacity of BlockingQueue
+    private static final int NUM_CONSUMERS = 4;        // Number of consumer threads
+
+    // Define a row of data as a simple object
+    static class DataRow {
+        String data;
+
+        public DataRow(String data) {
+            this.data = data;
+        }
+    }
+
+    public static void main(String[] args) throws InterruptedException {
+        // BlockingQueue to hold rows fetched by producers
+        BlockingQueue<DataRow> queue = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
+        
+        // File path to write data
+        String filePath = "output.txt";
+
+        // Executor services for producers and consumers
+        ExecutorService producerService = Executors.newSingleThreadExecutor();
+        ExecutorService consumerService = Executors.newFixedThreadPool(NUM_CONSUMERS);
+
+        // Start producer thread to read from database
+        producerService.submit(() -> {
+            try {
+                fetchFromDatabase(queue);
+            } catch (SQLException | InterruptedException e) {
+                e.printStackTrace();
+            } finally {
+                // Signal consumers to stop by adding "poison pill" null values
+                for (int i = 0; i < NUM_CONSUMERS; i++) {
+                    try {
+                        queue.put(new DataRow(null)); // Poison pill
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+        });
+
+        // Start consumer threads to write to file
+        for (int i = 0; i < NUM_CONSUMERS; i++) {
+            consumerService.submit(() -> {
+                try {
+                    writeToFile(queue, filePath);
+                } catch (IOException | InterruptedException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        // Shutdown producer and consumer services
+        producerService.shutdown();
+        consumerService.shutdown();
+        producerService.awaitTermination(1, TimeUnit.HOURS);
+        consumerService.awaitTermination(1, TimeUnit.HOURS);
+
+        System.out.println("Data transfer complete. Check " + filePath);
+    }
+
+    // Method to fetch rows from the database and add to the queue
+    private static void fetchFromDatabase(BlockingQueue<DataRow> queue) throws SQLException, InterruptedException {
+        String url = "jdbc:mysql://localhost:3306/your_database";
+        String user = "your_username";
+        String password = "your_password";
+
+        String query = "SELECT * FROM your_table LIMIT ? OFFSET ?";
+
+        try (Connection conn = DriverManager.getConnection(url, user, password)) {
+            System.out.println("Connected to the database.");
+            int rowsFetched = 0;
+
+            while (rowsFetched < TOTAL_ROWS) {
+                try (PreparedStatement pstmt = conn.prepareStatement(query)) {
+                    pstmt.setInt(1, FETCH_SIZE);
+                    pstmt.setInt(2, rowsFetched);
+
+                    ResultSet rs = pstmt.executeQuery();
+
+                    while (rs.next()) {
+                        // Replace "data_column" with your actual column name
+                        String rowData = rs.getString("data_column");
+                        queue.put(new DataRow(rowData));
+                    }
+                }
+                rowsFetched += FETCH_SIZE;
+                System.out.println("Fetched " + rowsFetched + " rows so far...");
+            }
+        }
+        System.out.println("Finished fetching data.");
+    }
+
+    // Method to write rows to a file
+    private static void writeToFile(BlockingQueue<DataRow> queue, String filePath) throws IOException, InterruptedException {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filePath, true))) {
+            while (true) {
+                DataRow row = queue.take(); // Blocks if queue is empty
+                if (row.data == null) {
+                    break; // Poison pill received
+                }
+                writer.write(row.data);
+                writer.newLine();
+            }
+        }
+        System.out.println(Thread.currentThread().getName() + " finished writing.");
+    }
+}
