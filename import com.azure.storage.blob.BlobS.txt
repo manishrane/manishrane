@@ -34,4 +34,54 @@ class BlobServiceClientBuilderTest {
         verify(mockBuilder).endpoint("https://example.blob.core.windows.net");
         verify(mockBuilder).buildClient();
     }
+
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.BlobServiceClientBuilder;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockedStatic;
+import org.mockito.Mockito;
+
+import static org.mockito.Mockito.*;
+
+class BlobServiceClientBuilderTest {
+
+    @Test
+    void testBlobServiceClientBuilder() {
+        // Mock the BlobServiceClient and BlobServiceClientBuilder
+        BlobServiceClient mockClient = Mockito.mock(BlobServiceClient.class);
+
+        // Use MockedStatic to mock static method chaining for final classes
+        try (MockedStatic<BlobServiceClientBuilder> mockedBuilderStatic = Mockito.mockStatic(BlobServiceClientBuilder.class)) {
+            BlobServiceClientBuilder mockBuilder = mock(BlobServiceClientBuilder.class);
+
+            // Define the behavior of the mockBuilder
+            when(mockBuilder.credential(any())).thenReturn(mockBuilder);
+            when(mockBuilder.endpoint(anyString())).thenReturn(mockBuilder);
+            when(mockBuilder.buildClient()).thenReturn(mockClient);
+
+            // Simulate the static invocation that constructs the builder
+            mockedBuilderStatic.when(BlobServiceClientBuilder::new).thenReturn(mockBuilder);
+
+            // Act: Simulate the code under test
+            BlobServiceClientBuilder builder = new BlobServiceClientBuilder();
+            BlobServiceClient client = builder
+                    .credential(null) // Replace with a real credential if necessary
+                    .endpoint("https://example.blob.core.windows.net")
+                    .buildClient();
+
+            // Assertions (optional, depending on the use case)
+            assertNotNull(client);
+            assertEquals(mockClient, client);
+
+            // Verify the method calls
+            verify(mockBuilder).credential(null);
+            verify(mockBuilder).endpoint("https://example.blob.core.windows.net");
+            verify(mockBuilder).buildClient();
+
+            // Verify the static builder invocation
+            mockedBuilderStatic.verify(BlobServiceClientBuilder::new);
+        }
+    }
+}
+
 }
