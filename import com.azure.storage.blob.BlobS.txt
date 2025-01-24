@@ -1,0 +1,37 @@
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.BlobServiceClientBuilder;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
+
+import static org.mockito.Mockito.*;
+
+class BlobServiceClientBuilderTest {
+
+    @Test
+    void testBlobServiceClientBuilder() {
+        // Mock the BlobServiceClientBuilder and BlobServiceClient
+        BlobServiceClientBuilder mockBuilder = Mockito.mock(BlobServiceClientBuilder.class);
+        BlobServiceClient mockClient = Mockito.mock(BlobServiceClient.class);
+
+        // Configure the mocked builder to return itself for method chaining
+        when(mockBuilder.credential(any())).thenReturn(mockBuilder);
+        when(mockBuilder.endpoint(anyString())).thenReturn(mockBuilder);
+        when(mockBuilder.buildClient()).thenReturn(mockClient);
+
+        // Simulate the method under test
+        BlobServiceClientBuilder builder = mockBuilder;
+        BlobServiceClient client = builder
+                .credential(null) // You can use a real credential or mock it
+                .endpoint("https://example.blob.core.windows.net")
+                .buildClient();
+
+        // Assertions (Optional, depends on your use case)
+        assertNotNull(client);
+        assertEquals(mockClient, client);
+
+        // Verify the method calls and chaining
+        verify(mockBuilder).credential(null);
+        verify(mockBuilder).endpoint("https://example.blob.core.windows.net");
+        verify(mockBuilder).buildClient();
+    }
+}
